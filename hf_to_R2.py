@@ -175,7 +175,6 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
             f"Saved {len(month_df)} records for {month} in {time.time() - start_time:.2f} seconds from {repo_id}"
         )
 
-    # Update the changelog with the latest processing information
     write_changelog_to_r2(r2_client, bucket_name, repo_name, last_update)
     print("Processing completed successfully!")
 
