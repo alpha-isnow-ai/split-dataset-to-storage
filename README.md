@@ -17,6 +17,7 @@ Highly recommended to subscribe to the [Papers with Backtest](https://paperswith
 
 - Python 3.12
 - Cloudflare R2 account and credentials
+- Hugging Face account and credentials
 - Git
 
 ### Installation
