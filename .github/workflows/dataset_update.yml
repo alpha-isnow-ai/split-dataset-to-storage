@@ -9,7 +9,6 @@ on:
       - master
     paths:
       - "**.py"
-      - "requirements.txt"
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
 jobs:
