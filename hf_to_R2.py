@@ -56,7 +56,9 @@ def get_r2_client():
 
 def get_r2_filesystem():
     return s3fs.S3FileSystem(
-        endpoint_url=R2_ENDPOINT_URL,
+        client_kwargs={
+            "endpoint_url": R2_ENDPOINT_URL,
+        },
         key=R2_ACCESS_KEY_ID,
         secret=R2_SECRET_ACCESS_KEY,
         config_kwargs={"signature_version": "s3v4"},
