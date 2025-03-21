@@ -36,5 +36,6 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          EXIT_AT_LAST_EXISTING_MONTH: ${{ vars.EXIT_AT_LAST_EXISTING_MONTH }}
 
         run: python hf_to_R2.py

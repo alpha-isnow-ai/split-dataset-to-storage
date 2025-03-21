@@ -14,7 +14,11 @@ load_dotenv()
 
 disable_progress_bar()
 
-EXIT_AT_LAST_EXISTING_MONTH = os.getenv("EXIT_AT_LAST_EXISTING_MONTH", "false")
+# Convert string env var to boolean
+EXIT_AT_LAST_EXISTING_MONTH = (
+    os.getenv("EXIT_AT_LAST_EXISTING_MONTH", "False").lower() == "true"
+)
+print(f"EXIT_AT_LAST_EXISTING_MONTH set to: {EXIT_AT_LAST_EXISTING_MONTH}")
 
 R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, HF_TOKEN = (
     os.getenv("R2_ENDPOINT_URL"),
@@ -149,7 +153,7 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
         file_key = f"ds/{repo_name}/{month}.parquet"
 
         if check_file_exists_in_r2(r2_client, bucket_name, file_key):
-            if EXIT_AT_LAST_EXISTING_MONTH == "true":
+            if EXIT_AT_LAST_EXISTING_MONTH:
                 print(f"Month {month} already exists in R2. Exiting processing.")
                 return
             else:
@@ -168,7 +172,7 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
         )
 
         print(
-            f"Saved {len(month_df)} records for {month} in {time.time() - start_time:.2f} seconds"
+            f"Saved {len(month_df)} records for {month} in {time.time() - start_time:.2f} seconds from {repo_id}"
         )
 
     # Update the changelog with the latest processing information
@@ -189,6 +193,22 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
 
 
 def main():
+    print("\n--- Environment Variables Check ---")
+    print(
+        f"R2_ENDPOINT_URL: {'Set (not showing value)' if R2_ENDPOINT_URL else 'Not set'}"
+    )
+    print(
+        f"R2_ACCESS_KEY_ID: {'Set (not showing value)' if R2_ACCESS_KEY_ID else 'Not set'}"
+    )
+    print(
+        f"R2_SECRET_ACCESS_KEY: {'Set (length=' + str(len(R2_SECRET_ACCESS_KEY)) + ')' if R2_SECRET_ACCESS_KEY else 'Not set'}"
+    )
+    print(f"R2_BUCKET_NAME: '{R2_BUCKET_NAME}' (should match your bucket name)")
+    print(
+        f"HF_TOKEN: {'Set (first 4: ' + HF_TOKEN[:4] + '...)' if HF_TOKEN else 'Not set'}"
+    )
+    print(f"EXIT_AT_LAST_EXISTING_MONTH: {EXIT_AT_LAST_EXISTING_MONTH}")
+    print("--------------------------------\n")
 
     for repo_id in [
         "paperswithbacktest/Stocks-Daily-Price",
