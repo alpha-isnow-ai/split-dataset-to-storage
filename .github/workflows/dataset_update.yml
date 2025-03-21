@@ -29,15 +29,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas pyarrow datasets huggingface_hub boto3 s3fs python-dotenv
 
-      - name: Verify secrets
-        run: |
-          if [ -z "${{ secrets.HF_TOKEN }}" ]; then
-            echo "HF_TOKEN is not set in GitHub secrets!"
-            exit 1
-          else
-            echo "HF_TOKEN is set (not showing value for security)"
-          fi
-
       - name: Run dataset update script
         env:
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}

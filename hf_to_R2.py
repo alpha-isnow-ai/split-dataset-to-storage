@@ -37,10 +37,6 @@ if (
 
 def get_dataset_last_update(repo_id):
     try:
-        # Debug token (only show first 4 and last 4 chars for security)
-        token_preview = HF_TOKEN[:4] + "..." + HF_TOKEN[-4:] if HF_TOKEN else "None"
-        print(f"Using HF token: {token_preview}")
-
         api = hf_api.HfApi(token=HF_TOKEN)
         repo_info = api.repo_info(repo_id=repo_id, repo_type="dataset")
         return repo_info.lastModified
@@ -193,14 +189,6 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
 
 
 def main():
-    print("Environment variables check:")
-    print(f"R2_ENDPOINT_URL set: {'Yes' if R2_ENDPOINT_URL else 'No'}")
-    print(f"R2_ACCESS_KEY_ID set: {'Yes' if R2_ACCESS_KEY_ID else 'No'}")
-    print(
-        f"R2_SECRET_ACCESS_KEY set: {'Yes, length=' + str(len(R2_SECRET_ACCESS_KEY)) if R2_SECRET_ACCESS_KEY else 'No'}"
-    )
-    print(f"R2_BUCKET_NAME set: {'Yes: ' + R2_BUCKET_NAME if R2_BUCKET_NAME else 'No'}")
-    print(f"HF_TOKEN set: {'Yes, length=' + str(len(HF_TOKEN)) if HF_TOKEN else 'No'}")
 
     for repo_id in [
         "paperswithbacktest/Stocks-Daily-Price",
