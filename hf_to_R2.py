@@ -193,22 +193,7 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
 
 
 def main():
-    print("\n--- Environment Variables Check ---")
-    print(
-        f"R2_ENDPOINT_URL: {'Set (not showing value)' if R2_ENDPOINT_URL else 'Not set'}"
-    )
-    print(
-        f"R2_ACCESS_KEY_ID: {'Set (not showing value)' if R2_ACCESS_KEY_ID else 'Not set'}"
-    )
-    print(
-        f"R2_SECRET_ACCESS_KEY: {'Set (length=' + str(len(R2_SECRET_ACCESS_KEY)) + ')' if R2_SECRET_ACCESS_KEY else 'Not set'}"
-    )
-    print(f"R2_BUCKET_NAME: '{R2_BUCKET_NAME}' (should match your bucket name)")
-    print(
-        f"HF_TOKEN: {'Set (first 4: ' + HF_TOKEN[:4] + '...)' if HF_TOKEN else 'Not set'}"
-    )
-    print(f"EXIT_AT_LAST_EXISTING_MONTH: {EXIT_AT_LAST_EXISTING_MONTH}")
-    print("--------------------------------\n")
+    print(f"----EXIT_AT_LAST_EXISTING_MONTH: {EXIT_AT_LAST_EXISTING_MONTH}----")
 
     for repo_id in [
         "paperswithbacktest/Stocks-Daily-Price",
