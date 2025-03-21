@@ -132,7 +132,7 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
 
     print(f"Loading dataset {repo_id}...")
     start_time = time.time()
-    dataset = load_dataset(repo_id, token=HF_TOKEN, streaming=True)
+    dataset = load_dataset(repo_id, token=HF_TOKEN)
     print(f"Dataset loaded in {time.time() - start_time:.2f} seconds")
 
     print("Converting to pandas DataFrame...")
