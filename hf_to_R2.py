@@ -26,9 +26,10 @@ if (
     or not R2_ACCESS_KEY_ID
     or not R2_SECRET_ACCESS_KEY
     or not R2_BUCKET_NAME
+    or not HF_TOKEN
 ):
     raise ValueError(
-        "R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME must be set"
+        "R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME and HF_TOKEN must be set"
     )
 
 
