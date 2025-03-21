@@ -14,6 +14,8 @@ load_dotenv()
 
 disable_progress_bar()
 
+EXIT_AT_LAST_EXISTING_MONTH = os.getenv("EXIT_AT_LAST_EXISTING_MONTH", "false")
+
 R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, HF_TOKEN = (
     os.getenv("R2_ENDPOINT_URL"),
     os.getenv("R2_ACCESS_KEY_ID"),
@@ -122,7 +124,7 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
             print(
                 f"Repository has not been updated since last processing ({last_processed.isoformat()}). Exiting."
             )
-            exit()
+            return
 
     print(f"Loading dataset {repo_id}...")
     start_time = time.time()
@@ -147,8 +149,12 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
         file_key = f"ds/{repo_name}/{month}.parquet"
 
         if check_file_exists_in_r2(r2_client, bucket_name, file_key):
-            print(f"Month {month} already exists in R2. Skipping processing.")
-            continue
+            if EXIT_AT_LAST_EXISTING_MONTH == "true":
+                print(f"Month {month} already exists in R2. Skipping processing.")
+                return
+            else:
+                print(f"Month {month} already exists in R2. Overwriting.")
+                continue
 
         print(f"Processing month {month}...")
         month_df = df[df["year_month"] == month].drop(columns=["year_month"])
