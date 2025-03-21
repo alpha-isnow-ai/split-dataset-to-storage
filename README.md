@@ -53,18 +53,7 @@ Highly recommended to subscribe to the [Papers with Backtest](https://paperswith
 Run the script to process all configured datasets:
 
 ```bash
-python huggingface_to_R2.py
-```
-
-### Loading Data from R2
-
-Use the `load_month_from_r2` function to load processed data:
-
-```python
-from huggingface_to_R2 import load_month_from_r2
-
-# Load data for a specific month
-df = load_month_from_r2("stocks-daily-price", "2023.01", "your_bucket_name")
+python hf_to_R2.py
 ```
 
 ## GitHub Actions Workflow
