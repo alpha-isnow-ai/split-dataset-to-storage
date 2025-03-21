@@ -35,7 +35,7 @@ Highly recommended to subscribe to the [Papers with Backtest](https://paperswith
 
 3. Install dependencies:
    ```bash
-   pip install -r requirements.txt
+   pip install pandas pyarrow datasets huggingface_hub boto3 s3fs python-dotenv
    ```
 
 4. Create a `.env` file with your R2 credentials:
