@@ -14,11 +14,12 @@ load_dotenv()
 
 disable_progress_bar()
 
-R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME = (
+R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, HF_TOKEN = (
     os.getenv("R2_ENDPOINT_URL"),
     os.getenv("R2_ACCESS_KEY_ID"),
     os.getenv("R2_SECRET_ACCESS_KEY"),
     os.getenv("R2_BUCKET_NAME"),
+    os.getenv("HF_TOKEN"),
 )
 if (
     not R2_ENDPOINT_URL
@@ -33,7 +34,7 @@ if (
 
 def get_dataset_last_update(repo_id):
     try:
-        api = hf_api.HfApi()
+        api = hf_api.HfApi(token=HF_TOKEN)
         repo_info = api.repo_info(repo_id=repo_id, repo_type="dataset")
         return repo_info.lastModified
 
@@ -122,7 +123,7 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
 
     print(f"Loading dataset {repo_id}...")
     start_time = time.time()
-    dataset = load_dataset(repo_id)
+    dataset = load_dataset(repo_id, token=HF_TOKEN)
     print(f"Dataset loaded in {time.time() - start_time:.2f} seconds")
 
     print("Converting to pandas DataFrame...")
@@ -166,16 +167,16 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
     print("Processing completed successfully!")
 
 
-def load_month_from_r2(repo_name, month, bucket_name):
-    fs = get_r2_filesystem()
+# def load_month_from_r2(repo_name, month, bucket_name):
+#     fs = get_r2_filesystem()
 
-    s3_path = f"s3://{bucket_name}/ds/{repo_name}/{month}.parquet"
+#     s3_path = f"s3://{bucket_name}/ds/{repo_name}/{month}.parquet"
 
-    print(f"Loading {month} data from R2...")
-    df = pd.read_parquet(s3_path, filesystem=fs)
-    print(f"Loaded {len(df)} records")
+#     print(f"Loading {month} data from R2...")
+#     df = pd.read_parquet(s3_path, filesystem=fs)
+#     print(f"Loaded {len(df)} records")
 
-    return df
+#     return df
 
 
 def main():
