@@ -10,7 +10,6 @@ on:
     paths:
       - "**.py"
       - "requirements.txt"
-      - "!.github/**" # Exclude .github directory
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
 jobs:
