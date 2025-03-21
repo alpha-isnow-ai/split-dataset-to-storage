@@ -1,0 +1,7 @@
+pandas
+pyarrow
+datasets
+huggingface_hub
+boto3
+s3fs
+python-dotenv
