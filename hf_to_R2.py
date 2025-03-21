@@ -198,6 +198,7 @@ def main():
     for repo_id in [
         "paperswithbacktest/Stocks-Daily-Price",
         "paperswithbacktest/ETFs-Daily-Price",
+        "paperswithbacktest/Indices-Daily-Price",
     ]:
         process_dataset_by_month(repo_id, R2_BUCKET_NAME, compression="zstd")
 
