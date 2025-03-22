@@ -198,6 +198,7 @@ def main():
         "paperswithbacktest/Stocks-Daily-Price",
         "paperswithbacktest/ETFs-Daily-Price",
         "paperswithbacktest/Indices-Daily-Price",
+        "paperswithbacktest/Cryptocurrencies-Daily-Price",
     ]:
         process_dataset_by_month(repo_id, R2_BUCKET_NAME, compression="zstd")
 
