@@ -84,8 +84,22 @@ To use the GitHub Actions workflow:
 
 ## How It Works
 
-1. The script loads datasets from Hugging Face (`paperswithbacktest/Stocks-Daily-Price` and `paperswithbacktest/Stocks-Daily-Price-2`)
+1. The script loads datasets from Hugging Face. 
 2. Data is converted to Pandas DataFrames
 3. The DataFrame is split by month
 4. Each month is saved as a separate Parquet file in R2 storage
 5. A changelog is maintained to avoid reprocessing unchanged data 
+
+---
+
+## Repositories
+
+- [Stocks-Daily-Price](https://huggingface.co/paperswithbacktest/Stocks-Daily-Price)
+- [ETFs-Daily-Price](https://huggingface.co/paperswithbacktest/ETFs-Daily-Price)
+- [Indices-Daily-Price](https://huggingface.co/paperswithbacktest/Indices-Daily-Price)
+- [Cryptocurrencies-Daily-Price](https://huggingface.co/paperswithbacktest/Cryptocurrencies-Daily-Price)
+- [Bonds-Daily-Price](https://huggingface.co/paperswithbacktest/Bonds-Daily-Price)
+- [Forex-Daily-Price](https://huggingface.co/paperswithbacktest/Forex-Daily-Price)
+- [Commodities-Daily-Price](https://huggingface.co/paperswithbacktest/Commodities-Daily-Price)
+
+
