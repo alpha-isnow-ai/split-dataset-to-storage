@@ -8,7 +8,7 @@ Highly recommended to subscribe to the [Papers with Backtest](https://paperswith
 - Automatically downloads datasets from Hugging Face
 - Splits data by month and converts to Parquet format
 - Stores the processed data in Cloudflare R2
-- Forces updates for the most recent four months of data
+- Forces updates for the most recent six months of data
 - Uses rclone for efficient incremental syncing to R2
 
 ## Setup
@@ -64,7 +64,7 @@ python hf_to_R2.py
 
 ### Command-line Options
 
-- `--overwrite-cache`: Force regeneration of all local cache files
+- `--overwrite-cache`: Process all months instead of just the recent six months
 - `--force-sync`: Force sync all files to R2 (using rclone sync instead of copy)
 
 ## GitHub Actions Workflow
@@ -99,8 +99,8 @@ To use the GitHub Actions workflow:
 2. Data is converted to Pandas DataFrames
 3. The DataFrame is split by month
 4. Each month is saved as a separate Parquet file in local cache
-   - The most recent four calendar months are always regenerated
-   - Older months use cached files if available
+   - By default, only the most recent six calendar months are processed
+   - With `--overwrite-cache`, all months are processed
 5. rclone is used to sync files to R2 storage:
    - By default, only new or larger files are copied to R2
    - With `--force-sync`, all files are synchronized to R2

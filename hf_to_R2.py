@@ -153,7 +153,7 @@ acl = private
             os.remove(rclone_config_path)
 
 
-def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
+def process_dataset_by_month(repo_id, bucket_name, compression="brotli"):
     repo_name = repo_id.split("/")[-1].lower()
 
     print(f"Loading dataset {repo_id}...")
@@ -172,12 +172,12 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
     months = sorted(df["year_month"].unique(), reverse=True)
     print(f"Found {len(months)} unique months in the dataset")
 
-    # Calculate the most recent four calendar months based on current date
+    # Calculate the most recent six calendar months based on current date
     current_date = datetime.now()
     recent_months = []
 
-    # Get the current month and previous three months (four months total)
-    for i in range(4):
+    # Get the current month and previous five months (six months total)
+    for i in range(6):
         # Calculate month offset from current date
         month_date = current_date.replace(day=1) - pd.DateOffset(months=i)
         recent_month = month_date.strftime("%Y.%m")
@@ -189,21 +189,17 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
     for month in months:
         cache_file = get_cache_file_path(repo_name, month)
 
-        # Force update for recent calendar months or if overwrite-cache flag is set
-        if month in recent_months or args.overwrite_cache:
-            should_process = True
-            if month in recent_months:
-                print(f"Force processing recent calendar month: {month}")
-            else:
-                print(f"Processing month {month} due to overwrite-cache flag")
-        else:
-            # For older months, check if cache exists
-            should_process = not check_cache_file_exists(repo_name, month)
-            if not should_process:
-                print(f"Using cached file for older month: {month}")
+        # Process if it's a recent month or if overwrite-cache flag is set
+        if args.overwrite_cache or month in recent_months:
+            print(
+                f"Processing month {month}"
+                + (
+                    ", overwrite-cache flag is set"
+                    if args.overwrite_cache
+                    else ", it's a recent month"
+                )
+            )
 
-        if should_process:
-            print(f"Processing month {month}...")
             month_df = df[df["year_month"] == month].drop(columns=["year_month"])
 
             # Save to cache
@@ -212,12 +208,16 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
             month_df.to_parquet(
                 cache_file,
                 engine="pyarrow",
-                compression="brotli",
+                compression=compression,
                 compression_level=11,
                 index=False,
             )
             print(
                 f"Saved {len(month_df)} records for {month} to cache in {time.time() - start_time:.2f} seconds"
+            )
+        else:
+            print(
+                f"Skipping month {month} because it's not in recent months and overwrite-cache is not set"
             )
 
     # Sync all files to R2 using rclone
