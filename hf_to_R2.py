@@ -9,16 +9,33 @@ from huggingface_hub import hf_api
 from datetime import datetime
 import json
 from dotenv import load_dotenv
+import argparse
+import pathlib
+import subprocess
 
 load_dotenv()
 
 disable_progress_bar()
 
-# Convert string env var to boolean
-EXIT_AT_LAST_EXISTING_MONTH = (
-    os.getenv("EXIT_AT_LAST_EXISTING_MONTH", "False").lower() == "true"
+# Set up argument parser
+parser = argparse.ArgumentParser(
+    description="Process HuggingFace datasets and upload to R2 storage"
 )
-print(f"EXIT_AT_LAST_EXISTING_MONTH set to: {EXIT_AT_LAST_EXISTING_MONTH}")
+parser.add_argument(
+    "--overwrite-cache",
+    action="store_true",
+    help="Overwrite cached files even if they exist",
+)
+parser.add_argument(
+    "--force-sync",
+    action="store_true",
+    help="Force sync all files to R2 even if they exist",
+)
+args = parser.parse_args()
+
+# Cache directory
+CACHE_DIR = os.path.expanduser("~/.alpha_isnow_cache")
+os.makedirs(CACHE_DIR, exist_ok=True)
 
 R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, HF_TOKEN = (
     os.getenv("R2_ENDPOINT_URL"),
@@ -71,64 +88,90 @@ def get_r2_filesystem():
     )
 
 
-def check_file_exists_in_r2(r2_client, bucket_name, file_key):
+def check_cache_file_exists(repo_name, month):
+    cache_file = os.path.join(CACHE_DIR, f"{repo_name}_{month}.parquet")
+    return os.path.exists(cache_file)
+
+
+def get_cache_file_path(repo_name, month):
+    return os.path.join(CACHE_DIR, f"{repo_name}_{month}.parquet")
+
+
+def sync_files_to_r2(repo_name):
+    # Create a temporary rclone config file
+    rclone_config_path = os.path.join(CACHE_DIR, "rclone.conf")
+    with open(rclone_config_path, "w") as f:
+        f.write(
+            f"""[r2]
+type = s3
+provider = Cloudflare
+access_key_id = {R2_ACCESS_KEY_ID}
+secret_access_key = {R2_SECRET_ACCESS_KEY}
+endpoint = {R2_ENDPOINT_URL.replace("https://", "")}
+acl = private
+"""
+        )
+
+    # Source directory with the repo's cached files
+    source_dir = CACHE_DIR
+
+    # Destination path in R2
+    dest_path = f"r2:/{R2_BUCKET_NAME}/ds/{repo_name}/"
+
+    # Build rclone command
+    if args.force_sync:
+        # When --force-sync is used, sync all files regardless of their state
+        cmd = [
+            "rclone",
+            "sync",  # sync will make destination identical to source
+            "--config",
+            rclone_config_path,
+            "--include",
+            f"{repo_name}_*.parquet",
+            "--s3-no-check-bucket",
+        ]
+        print(f"Force syncing all files to R2 for {repo_name}...")
+    else:
+        # Default behavior: only copy files that don't exist or are larger
+        cmd = [
+            "rclone",
+            "copy",  # copy will only transfer missing/changed files
+            "--config",
+            rclone_config_path,
+            "--include",
+            f"{repo_name}_*.parquet",
+            "--s3-no-check-bucket",
+            "--size-only",  # Only consider size (ignore modification time)
+            "--update",  # Skip files that are newer on the destination
+        ]
+        print(f"Syncing only new or larger files to R2 for {repo_name}...")
+
+    # Add source and destination
+    cmd.extend([source_dir, dest_path])
+
+    # Execute the command
     try:
-        r2_client.head_object(Bucket=bucket_name, Key=file_key)
-        return True
-    except:
-        return False
-
-
-def read_changelog_from_r2(r2_client, bucket_name, repo_name):
-    changelog_key = f"ds/{repo_name}/changelog"
-    try:
-        response = r2_client.get_object(Bucket=bucket_name, Key=changelog_key)
-        changelog_data = json.loads(response["Body"].read().decode("utf-8"))
-        return changelog_data
-    except:
-        return None
-
-
-def write_changelog_to_r2(r2_client, bucket_name, repo_name, last_update):
-    """Write the changelog file to R2"""
-    changelog_key = f"ds/{repo_name}/changelog"
-
-    changelog_data = {
-        "repo_id": repo_name,
-        "last_update": last_update.isoformat(),
-        "processed_at": datetime.now().isoformat(),
-    }
-
-    r2_client.put_object(
-        Bucket=bucket_name,
-        Key=changelog_key,
-        Body=json.dumps(changelog_data, indent=2),
-        ContentType="application/json",
-    )
-
-    print(f"Updated changelog in R2: {changelog_key}")
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        print(f"Sync completed successfully for {repo_name}")
+        print(result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Error syncing files: {e}")
+        print(f"Command output: {e.stdout}")
+        print(f"Command error: {e.stderr}")
+    finally:
+        # Clean up the temporary config file
+        if os.path.exists(rclone_config_path):
+            os.remove(rclone_config_path)
 
 
 def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
     repo_name = repo_id.split("/")[-1].lower()
-    r2_client = get_r2_client()
     last_update = get_dataset_last_update(repo_id)
     if not last_update:
         print(f"Could not get last update time for {repo_id}. Exiting.")
         return
 
     print(f"Repository {repo_id} last updated: {last_update.isoformat()}")
-
-    changelog = read_changelog_from_r2(r2_client, bucket_name, repo_name)
-    if changelog:
-        last_processed = datetime.fromisoformat(changelog.get("last_update", None))
-        if last_processed == None or last_update == None:
-            pass
-        if last_processed >= last_update:
-            print(
-                f"Repository has not been updated since last processing ({last_processed.isoformat()}). Exiting."
-            )
-            return
 
     print(f"Loading dataset {repo_id}...")
     start_time = time.time()
@@ -141,59 +184,42 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
     print(f"Conversion completed in {time.time() - start_time:.2f} seconds")
 
     df["date"] = pd.to_datetime(df["date"])
-
     df["year_month"] = df["date"].dt.strftime("%Y.%m")
 
     months = sorted(df["year_month"].unique(), reverse=True)
     print(f"Found {len(months)} unique months in the dataset")
 
-    fs = get_r2_filesystem()
-
     for month in months:
-        file_key = f"ds/{repo_name}/{month}.parquet"
+        cache_file = get_cache_file_path(repo_name, month)
 
-        if check_file_exists_in_r2(r2_client, bucket_name, file_key):
-            if EXIT_AT_LAST_EXISTING_MONTH:
-                print(f"Month {month} already exists in R2. Exiting processing.")
-                return
-            else:
-                print(f"Month {month} already exists in R2. Skipping.")
-                continue
+        # Check if cache file exists and --overwrite-cache is not set
+        if check_cache_file_exists(repo_name, month) and not args.overwrite_cache:
+            print(f"Using cached file for {month}")
+            continue
 
         print(f"Processing month {month}...")
         month_df = df[df["year_month"] == month].drop(columns=["year_month"])
 
-        s3_path = f"s3://{bucket_name}/{file_key}"
-        print(f"Saving {month} to R2 with {compression} compression...")
+        # Save to cache
+        print(f"Saving {month} to cache...")
         start_time = time.time()
-
         month_df.to_parquet(
-            s3_path, compression=compression, index=False, filesystem=fs
+            cache_file,
+            engine="pyarrow",
+            compression="brotli",
+            compression_level=11,
+            index=False,
         )
-
         print(
-            f"Saved {len(month_df)} records for {month} in {time.time() - start_time:.2f} seconds from {repo_id}"
+            f"Saved {len(month_df)} records for {month} to cache in {time.time() - start_time:.2f} seconds"
         )
 
-    write_changelog_to_r2(r2_client, bucket_name, repo_name, last_update)
+    # Sync all files to R2 using rclone
+    sync_files_to_r2(repo_name)
     print("Processing completed successfully!")
 
 
-# def load_month_from_r2(repo_name, month, bucket_name):
-#     fs = get_r2_filesystem()
-
-#     s3_path = f"s3://{bucket_name}/ds/{repo_name}/{month}.parquet"
-
-#     print(f"Loading {month} data from R2...")
-#     df = pd.read_parquet(s3_path, filesystem=fs)
-#     print(f"Loaded {len(df)} records")
-
-#     return df
-
-
 def main():
-    print(f"----EXIT_AT_LAST_EXISTING_MONTH: {EXIT_AT_LAST_EXISTING_MONTH}----")
-
     for repo_id in [
         "paperswithbacktest/Stocks-Daily-Price",
         "paperswithbacktest/ETFs-Daily-Price",
@@ -201,8 +227,7 @@ def main():
         "paperswithbacktest/Cryptocurrencies-Daily-Price",
         "paperswithbacktest/Bonds-Daily-Price",
         "paperswithbacktest/Forex-Daily-Price",
-        "paperswithbacktest/Commodities-Daily-Price"
-        
+        "paperswithbacktest/Commodities-Daily-Price",
     ]:
         process_dataset_by_month(repo_id, R2_BUCKET_NAME, compression="zstd")
 
