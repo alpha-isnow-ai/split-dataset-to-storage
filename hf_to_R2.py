@@ -13,7 +13,8 @@ import argparse
 import pathlib
 import subprocess
 
-load_dotenv()
+dotenv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+load_dotenv(dotenv_path, override=True)
 
 disable_progress_bar()
 
@@ -37,13 +38,13 @@ args = parser.parse_args()
 CACHE_DIR = os.path.expanduser("~/.alpha_isnow_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, HF_TOKEN = (
-    os.getenv("R2_ENDPOINT_URL"),
-    os.getenv("R2_ACCESS_KEY_ID"),
-    os.getenv("R2_SECRET_ACCESS_KEY"),
-    os.getenv("R2_BUCKET_NAME"),
-    os.getenv("HF_TOKEN"),
-)
+R2_ENDPOINT_URL = os.getenv("R2_ENDPOINT_URL")
+R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
+R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
+R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+
 if (
     not R2_ENDPOINT_URL
     or not R2_ACCESS_KEY_ID
@@ -93,11 +94,11 @@ def sync_files_to_r2(repo_name):
         f.write(
             f"""[r2]
 type = s3
+env_auth = true
 provider = Cloudflare
 access_key_id = {R2_ACCESS_KEY_ID}
 secret_access_key = {R2_SECRET_ACCESS_KEY}
-endpoint = {R2_ENDPOINT_URL.replace("https://", "")}
-acl = private
+endpoint = {R2_ENDPOINT_URL}
 """
         )
 
@@ -147,10 +148,10 @@ acl = private
         print(f"Error syncing files: {e}")
         print(f"Command output: {e.stdout}")
         print(f"Command error: {e.stderr}")
-    finally:
-        # Clean up the temporary config file
-        if os.path.exists(rclone_config_path):
-            os.remove(rclone_config_path)
+    # finally:
+    #     # Clean up the temporary config file
+    #     if os.path.exists(rclone_config_path):
+    #         os.remove(rclone_config_path)
 
 
 def process_dataset_by_month(repo_id, bucket_name, compression="brotli"):
