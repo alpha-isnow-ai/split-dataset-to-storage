@@ -56,17 +56,6 @@ if (
     )
 
 
-def get_dataset_last_update(repo_id):
-    try:
-        api = hf_api.HfApi(token=HF_TOKEN)
-        repo_info = api.repo_info(repo_id=repo_id, repo_type="dataset")
-        return repo_info.lastModified
-
-    except Exception as e:
-        print(f"Error getting repository info: {e}")
-        return None
-
-
 def get_r2_client():
     return boto3.client(
         "s3",
@@ -166,12 +155,6 @@ acl = private
 
 def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
     repo_name = repo_id.split("/")[-1].lower()
-    last_update = get_dataset_last_update(repo_id)
-    if not last_update:
-        print(f"Could not get last update time for {repo_id}. Exiting.")
-        return
-
-    print(f"Repository {repo_id} last updated: {last_update.isoformat()}")
 
     print(f"Loading dataset {repo_id}...")
     start_time = time.time()
@@ -189,30 +172,53 @@ def process_dataset_by_month(repo_id, bucket_name, compression="zstd"):
     months = sorted(df["year_month"].unique(), reverse=True)
     print(f"Found {len(months)} unique months in the dataset")
 
+    # Calculate the most recent four calendar months based on current date
+    current_date = datetime.now()
+    recent_months = []
+
+    # Get the current month and previous three months (four months total)
+    for i in range(4):
+        # Calculate month offset from current date
+        month_date = current_date.replace(day=1) - pd.DateOffset(months=i)
+        recent_month = month_date.strftime("%Y.%m")
+        recent_months.append(recent_month)
+
+    print(f"Current date: {current_date.strftime('%Y-%m-%d')}")
+    print(f"Will force update data from recent months: {recent_months}")
+
     for month in months:
         cache_file = get_cache_file_path(repo_name, month)
 
-        # Check if cache file exists and --overwrite-cache is not set
-        if check_cache_file_exists(repo_name, month) and not args.overwrite_cache:
-            print(f"Using cached file for {month}")
-            continue
+        # Force update for recent calendar months or if overwrite-cache flag is set
+        if month in recent_months or args.overwrite_cache:
+            should_process = True
+            if month in recent_months:
+                print(f"Force processing recent calendar month: {month}")
+            else:
+                print(f"Processing month {month} due to overwrite-cache flag")
+        else:
+            # For older months, check if cache exists
+            should_process = not check_cache_file_exists(repo_name, month)
+            if not should_process:
+                print(f"Using cached file for older month: {month}")
 
-        print(f"Processing month {month}...")
-        month_df = df[df["year_month"] == month].drop(columns=["year_month"])
+        if should_process:
+            print(f"Processing month {month}...")
+            month_df = df[df["year_month"] == month].drop(columns=["year_month"])
 
-        # Save to cache
-        print(f"Saving {month} to cache...")
-        start_time = time.time()
-        month_df.to_parquet(
-            cache_file,
-            engine="pyarrow",
-            compression="brotli",
-            compression_level=11,
-            index=False,
-        )
-        print(
-            f"Saved {len(month_df)} records for {month} to cache in {time.time() - start_time:.2f} seconds"
-        )
+            # Save to cache
+            print(f"Saving {month} to cache...")
+            start_time = time.time()
+            month_df.to_parquet(
+                cache_file,
+                engine="pyarrow",
+                compression="brotli",
+                compression_level=11,
+                index=False,
+            )
+            print(
+                f"Saved {len(month_df)} records for {month} to cache in {time.time() - start_time:.2f} seconds"
+            )
 
     # Sync all files to R2 using rclone
     sync_files_to_r2(repo_name)
