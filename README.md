@@ -8,8 +8,8 @@ Highly recommended to subscribe to the [Papers with Backtest](https://paperswith
 - Automatically downloads datasets from Hugging Face
 - Splits data by month and converts to Parquet format
 - Stores the processed data in Cloudflare R2
-- Tracks changes with a changelog system
-- Avoids redundant processing by checking for updates
+- Forces updates for the most recent four months of data
+- Uses rclone for efficient incremental syncing to R2
 
 ## Setup
 
@@ -18,6 +18,7 @@ Highly recommended to subscribe to the [Papers with Backtest](https://paperswith
 - Python 3.12
 - Cloudflare R2 account and credentials
 - Hugging Face account and credentials
+- rclone (installed automatically in GitHub Actions)
 - Git
 
 ### Installation
@@ -37,6 +38,9 @@ Highly recommended to subscribe to the [Papers with Backtest](https://paperswith
 3. Install dependencies:
    ```bash
    pip install pandas pyarrow datasets huggingface_hub boto3 s3fs python-dotenv
+   sudo apt-get install rclone  # On Ubuntu/Debian
+   # or
+   brew install rclone  # On macOS
    ```
 
 4. Create a `.env` file with your R2 credentials:
@@ -45,6 +49,7 @@ Highly recommended to subscribe to the [Papers with Backtest](https://paperswith
    R2_ACCESS_KEY_ID=your_access_key
    R2_SECRET_ACCESS_KEY=your_secret_key
    R2_BUCKET_NAME=your_bucket_name
+   HF_TOKEN=your_huggingface_token
    ```
 
 ## Usage
@@ -56,6 +61,11 @@ Run the script to process all configured datasets:
 ```bash
 python hf_to_R2.py
 ```
+
+### Command-line Options
+
+- `--overwrite-cache`: Force regeneration of all local cache files
+- `--force-sync`: Force sync all files to R2 (using rclone sync instead of copy)
 
 ## GitHub Actions Workflow
 
@@ -74,6 +84,7 @@ To use the GitHub Actions workflow:
    - `R2_ACCESS_KEY_ID`
    - `R2_SECRET_ACCESS_KEY`
    - `R2_BUCKET_NAME`
+   - `HF_TOKEN`
 
 2. Ensure the workflow file (`.github/workflows/dataset_update.yml`) is committed to your repository
 
@@ -84,11 +95,24 @@ To use the GitHub Actions workflow:
 
 ## How It Works
 
-1. The script loads datasets from Hugging Face. 
+1. The script loads complete datasets from Hugging Face
 2. Data is converted to Pandas DataFrames
 3. The DataFrame is split by month
-4. Each month is saved as a separate Parquet file in R2 storage
-5. A changelog is maintained to avoid reprocessing unchanged data 
+4. Each month is saved as a separate Parquet file in local cache
+   - The most recent four calendar months are always regenerated
+   - Older months use cached files if available
+5. rclone is used to sync files to R2 storage:
+   - By default, only new or larger files are copied to R2
+   - With `--force-sync`, all files are synchronized to R2
+   - Files that exist in R2 but not locally are preserved
+
+## Sync Strategy
+
+The sync strategy uses rclone with the following behavior:
+- Default mode (`rclone copy`): Only upload files that don't exist in R2 or are larger locally
+- Force mode (`rclone sync` with `--force-sync` flag): Make R2 identical to local cache
+
+In both cases, files that exist in R2 but not locally are preserved.
 
 ---
 
