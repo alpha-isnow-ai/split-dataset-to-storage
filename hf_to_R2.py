@@ -17,6 +17,9 @@ load_dotenv()
 
 disable_progress_bar()
 
+BROTLI_MAX_COMPRESSION_LEVEL = 11
+
+
 # Set up argument parser
 parser = argparse.ArgumentParser(
     description="Process HuggingFace datasets and upload to R2 storage"
@@ -118,6 +121,7 @@ endpoint = {R2_ENDPOINT_URL}
             "--include",
             f"{repo_name}_*.parquet",
             "--s3-no-check-bucket",
+            "-v",
         ]
         print(f"Force syncing all files to R2 for {repo_name}...")
     else:
@@ -130,8 +134,8 @@ endpoint = {R2_ENDPOINT_URL}
             "--include",
             f"{repo_name}_*.parquet",
             "--s3-no-check-bucket",
-            "--size-only",  # Only consider size (ignore modification time)
             "--update",  # Skip files that are newer on the destination
+            "-v",
         ]
         print(f"Syncing only new or larger files to R2 for {repo_name}...")
 
@@ -147,10 +151,10 @@ endpoint = {R2_ENDPOINT_URL}
         print(f"Error syncing files: {e}")
         print(f"Command output: {e.stdout}")
         print(f"Command error: {e.stderr}")
-    # finally:
-    #     # Clean up the temporary config file
-    #     if os.path.exists(rclone_config_path):
-    #         os.remove(rclone_config_path)
+    finally:
+        # Clean up the temporary config file
+        if os.path.exists(rclone_config_path):
+            os.remove(rclone_config_path)
 
 
 def process_dataset_by_month(repo_id, bucket_name, compression="brotli"):
@@ -163,13 +167,19 @@ def process_dataset_by_month(repo_id, bucket_name, compression="brotli"):
 
     print("Converting to pandas DataFrame...")
     start_time = time.time()
+
+    # Convert to DataFrame
     df = dataset["train"].to_pandas()
+
+    # Convert dates to datetime, normalize to midnight to get day-level precision
+    df["date"] = pd.to_datetime(df["date"]).dt.normalize()
     print(f"Conversion completed in {time.time() - start_time:.2f} seconds")
 
-    df["date"] = pd.to_datetime(df["date"])
-    df["year_month"] = df["date"].dt.strftime("%Y.%m")
+    # Extract month identifier from dates
+    df["month_id"] = df["date"].dt.strftime("%Y.%m")
 
-    months = sorted(df["year_month"].unique(), reverse=True)
+    # Get unique months and sort them for ordered processing
+    months = sorted(df["month_id"].unique())
     print(f"Found {len(months)} unique months in the dataset")
 
     # Calculate the most recent six calendar months based on current date
@@ -189,6 +199,9 @@ def process_dataset_by_month(repo_id, bucket_name, compression="brotli"):
     for month in months:
         cache_file = get_cache_file_path(repo_name, month)
 
+        # Filter data for the current month using the pre-calculated month_id
+        month_df = df[df["month_id"] == month]
+
         # Process if it's a recent month or if overwrite-cache flag is set
         if args.overwrite_cache or month in recent_months:
             print(
@@ -199,17 +212,18 @@ def process_dataset_by_month(repo_id, bucket_name, compression="brotli"):
                     else ", it's a recent month"
                 )
             )
-
-            month_df = df[df["year_month"] == month].drop(columns=["year_month"])
-
             # Save to cache
             print(f"Saving {month} to cache...")
             start_time = time.time()
-            month_df.to_parquet(
+
+            # Drop temporary month_id column before saving
+            save_df = month_df.drop(columns=["month_id"])
+
+            save_df.to_parquet(
                 cache_file,
                 engine="pyarrow",
                 compression=compression,
-                compression_level=11,
+                compression_level=BROTLI_MAX_COMPRESSION_LEVEL,
                 index=False,
             )
             print(
@@ -217,7 +231,7 @@ def process_dataset_by_month(repo_id, bucket_name, compression="brotli"):
             )
         else:
             print(
-                f"Skipping month {month} because it's not in recent months and overwrite-cache is not set"
+                f"Skipping month {month} because it's not in recent months and overwrite-cache is {args.overwrite_cache}"
             )
 
     # Sync all files to R2 using rclone
@@ -235,7 +249,7 @@ def main():
         "paperswithbacktest/Forex-Daily-Price",
         "paperswithbacktest/Commodities-Daily-Price",
     ]:
-        process_dataset_by_month(repo_id, R2_BUCKET_NAME, compression="zstd")
+        process_dataset_by_month(repo_id, R2_BUCKET_NAME)
 
 
 if __name__ == "__main__":
